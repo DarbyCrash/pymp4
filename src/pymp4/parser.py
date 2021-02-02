@@ -79,7 +79,6 @@ class PrefixedIncludingSize(Subconstruct):
     def _sizeof(self, context, path):
         return self.lengthfield._sizeof(context, path) + self.subcon._sizeof(context, path)
 
-
 # Header box
 
 FileTypeBox = Struct(
@@ -324,6 +323,55 @@ MP4ASampleEntryBox = Struct(
     Padding(2)
 )
 
+MP4ASampleExtensionBox = PrefixedIncludingSize(Int32ub,Struct(
+    "type" / String(4, padchar=b" ", paddir="right"),
+    Embedded(Switch(this.type, {
+        # elementary stream description
+        b'esds':Struct(
+            "version" / Default(Int8ub, 0),
+            "flags" /  Default(Int24ub, 0),
+            "odType" / Int8ub,
+            "detail" / Switch(this.odType,{
+                3 : Struct(
+                    "length" / Int8ub,
+                    "esId" / Int16ub,
+                    "flags" / Int8ub,
+                    "esType" / Int8ub,
+                    "detail" / Switch(this.esType,{
+                        4 : Struct(
+                            "length" / Int8ub,
+                            "objectProfileIndication" / Int8ub,
+                            "flags" / Int8ub,
+                            "bufferSize" / Int24ub,
+                            "maxBitrate" / Int32ub,
+                            "avgBitrate" / Int32ub,
+                            "ascType" / Int8ub,
+                            "detail" / Switch(this.ascType,{
+                                5 : Struct(                            
+                                    "length" / Int8ub,
+                                    "specificInfo" / GreedyBytes
+                                )
+                            },default=GreedyBytes)
+                        )
+                    },default=GreedyBytes)
+                )
+            },default=GreedyBytes)
+        )
+    }, default=Struct(RawBox)))
+))
+
+EncryptedMP4ASampleEntryBox = Struct(
+    "version" / Default(Int16ub, 0),
+    "revision" / Const(Int16ub, 0),
+    "vendor" / Const(Int32ub, 0),
+    "channels" / Default(Int16ub, 2),
+    "bits_per_sample" / Default(Int16ub, 16),
+    "compression_id" / Default(Int16sb, 0),
+    "packet_size" / Const(Int16ub, 0),
+    "sampling_rate" / Int16ub, Padding(2),
+    "extensions" / GreedyRange(MP4ASampleExtensionBox),
+    "sample_info" / LazyBound(lambda _: PrefixedIncludingSize(Int32ub, ProtectionSchemeInformationBox))
+)
 
 class MaskedInteger(Adapter):
     def _decode(self, obj, context):
@@ -406,7 +454,7 @@ SampleEntryBox = PrefixedIncludingSize(Int32ub, Struct(
     Embedded(Switch(this.format, {
         b"ec-3": MP4ASampleEntryBox,
         b"mp4a": MP4ASampleEntryBox,
-        b"enca": MP4ASampleEntryBox,
+        b"enca": EncryptedMP4ASampleEntryBox,
         b"avc1": AVC1SampleEntryBox,
         b"encv": EncryptedAVC1SampleEntryBox
     }, Struct("data" / GreedyBytes)))
@@ -662,7 +710,7 @@ MovieDataBox = Struct(
 SoundMediaHeaderBox = Struct(
     "type" / Const(b"smhd"),
     "version" / Const(Int8ub, 0),
-    "flags" / Const(Int24ub, 0),
+    "flags" / Default(Int24ub, 0),
     "balance" / Default(Int16sb, 0),
     "reserved" / Const(Int16ub, 0)
 )
