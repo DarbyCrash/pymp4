@@ -399,6 +399,35 @@ PixelAspectRatioBox = Struct(
     "vSpacing" / Int32ub
 )
 
+HVCC = Struct(
+    EmbeddedBitStruct(
+        "version" / Const(BitsInteger(8), 1),
+        "profile_space" / BitsInteger(2),
+        "general_tier_flag" / BitsInteger(1),
+        "general_profile" / BitsInteger(5),
+        "general_profile_compatibility_flags" / BitsInteger(32),
+        "general_constraint_indicator_flags" / BitsInteger(48),
+        "general_level" / BitsInteger(8),
+        Padding(4, pattern=b'\xff'),
+        "min_spatial_segmentation" / BitsInteger(12),
+        Padding(6, pattern=b'\xff'),
+        "parallelism_type" / BitsInteger(2),
+        Padding(6, pattern=b'\xff'),
+        "chroma_format" / BitsInteger(2),
+        Padding(5, pattern=b'\xff'),
+        "luma_bit_depth" / BitsInteger(3),
+        Padding(5, pattern=b'\xff'),
+        "chroma_bit_depth" / BitsInteger(3),
+        "average_frame_rate" / BitsInteger(16),
+        "constant_frame_rate" / BitsInteger(2),
+        "num_temporal_layers" / BitsInteger(3),
+        "temporal_id_nested" / BitsInteger(1),
+        "nalu_length_size" / BitsInteger(2),
+    ),
+    # TODO: parse NALUs
+    "raw_bytes" / GreedyBytes
+)
+
 AVC1SampleEntryBox = Struct(
     "version" / Default(Int16ub, 0),
     "revision" / Const(Int16ub, 0),
@@ -420,6 +449,7 @@ AVC1SampleEntryBox = Struct(
         "type" / String(4, padchar=b" ", paddir="right"),
         Embedded(Switch(this.type, {
             b"avcC": AVCConfigurationBox,
+            b"hvcC": HVCC,
             b"pasp": PixelAspectRatioBox
         }))
     ))
@@ -446,6 +476,7 @@ EncryptedAVC1SampleEntryBox = Struct(
         "type" / String(4, padchar=b" ", paddir="right"),
         Embedded(Switch(this.type, {
             b"avcC": AVCConfigurationBox,
+            b"hvcC": HVCC,
             b"pasp": PixelAspectRatioBox
         }))
     )),
